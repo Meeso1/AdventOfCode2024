@@ -1,37 +1,121 @@
 package main
 
-import(
+import (
 	"bufio"
 	"errors"
 	"fmt"
 	"os"
 )
 
+type Direction int
+
+const (
+	North Direction = iota
+	East
+	South
+	West
+)
+
+type Cords struct {
+	x int
+	y int
+}
+
 type Grid struct {
-	rows 	int
-	cols 	int
-	guardX	int
-	guardY	int
-	data 	[]int
+	rows  int
+	cols  int
+	guard Cords
+	dir   Direction
+	data  []int
 }
 
 func (m *Grid) At(i int, j int) int {
+	if i < 0 || i >= m.rows || j < 0 || j >= m.cols {
+		return -1
+	}
+
 	return m.data[i*m.cols+j]
 }
 
-func (m *Grid) Row(i int) []int {
-	return m.data[i*m.cols : (i+1)*m.cols]
+func (m *Grid) Advance() (Cords, bool) {
+	newCords := m.guard
+	direction := m.dir
+
+	switch m.dir {
+	case North:
+		switch m.At(m.guard.x-1, m.guard.y) {
+		case 0:
+			newCords = Cords{
+				x: m.guard.x - 1,
+				y: m.guard.y,
+			}
+			break
+		case 1:
+			direction = East
+		default:
+			return Cords{}, true
+		}
+		break
+	case East:
+		switch m.At(m.guard.x, m.guard.y+1) {
+		case 0:
+			newCords = Cords{
+				x: m.guard.x,
+				y: m.guard.y + 1,
+			}
+			break
+		case 1:
+			direction = South
+		default:
+			return Cords{}, true
+		}
+		break
+	case South:
+		switch m.At(m.guard.x+1, m.guard.y) {
+		case 0:
+			newCords = Cords{
+				x: m.guard.x + 1,
+				y: m.guard.y,
+			}
+			break
+		case 1:
+			direction = West
+		default:
+			return Cords{}, true
+		}
+		break
+	case West:
+		switch m.At(m.guard.x, m.guard.y-1) {
+		case 0:
+			newCords = Cords{
+				x: m.guard.x,
+				y: m.guard.y - 1,
+			}
+			break
+		case 1:
+			direction = North
+		default:
+			return Cords{}, true
+		}
+		break
+	}
+
+	m.guard = newCords
+	m.dir = direction
+	return newCords, false
 }
 
-func (m *Grid) Column(i int) <-chan int {
-	ch := make(chan int)
-	go func() {
-		for row := 0; row < m.rows; row++ {
-			ch <- m.At(row, i)
-		}
-		close(ch)
-	}()
-	return ch
+func (m *Grid) AddWall(i int, j int) bool {
+	if m.At(i, j) != 0{
+		return false
+	}
+
+	m.data[i*m.cols+j] = 1
+	return true
+}
+
+func (m *Grid) RemoveWall(i int, j int) {
+	m.data[i*m.cols+j] = 0
 }
 
 func readLines() ([]string, error) {
@@ -95,14 +179,38 @@ func toGrid(lines []string) (*Grid, error) {
 		rows: rows,
 		cols: cols,
 		data: data,
-		guardX: guardX,
-		guardY: guardY,
+		guard: Cords{
+			x: guardX,
+			y: guardY,
+		},
+		dir: North,
 	}, nil
 }
 
 func part1(grid *Grid) {
-	// TODO: Implement
-	fmt.Println("Part 1:", grid.rows)
+	visited := map[Cords]int{}
+	visited[grid.guard] = 1
+	for cords, out := grid.Advance(); !out; cords, out = grid.Advance() {
+		visited[cords] = 1
+	}
+
+	fmt.Println("Part 1:", len(visited))
+}
+
+func part2(grid *Grid) {
+	visited := map[Cords]Direction{}
+	locations := 0
+
+	visited[grid.guard] = North
+	for cords, out := grid.Advance(); !out; cords, out = grid.Advance() {
+		if _, ok := visited[cords]; ok {
+			locations += 1
+		} else {
+			visited[cords] = grid.dir
+		}
+	}
+
+	fmt.Println("Part 2:", locations)
 }
 
 func main() {
@@ -117,4 +225,11 @@ func main() {
 	}
 
 	part1(grid)
+
+	grid, err = toGrid(lines)
+	if err != nil {
+		panic(err)
+	}
+
+	part2(grid)
 }
